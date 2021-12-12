@@ -1,29 +1,30 @@
-
 import numpy as np
 
 
-HEIGHT = 4
-WIDTH = 4
-
 class Game2048(object):
+    HEIGHT = 4
+    WIDTH = 4
+
     def __init__(self, args):
-        self.actions = ['u', 'd', 'l', 'r']  # 操作：上下左右
+        self.actions = ['u', 'd', 'l', 'r']  # Op: move UP, move DOWN, move LEFT, move RIGHT
         self.n_actions = len(self.actions)
-        self.n_features = np.array([HEIGHT, WIDTH])
-        self.board = np.zeros(shape=[HEIGHT, WIDTH], dtype=np.int32)
+        self.n_features = np.array([Game2048.HEIGHT, Game2048.WIDTH])
+        self.board = np.zeros(shape=[Game2048.HEIGHT, Game2048.WIDTH], dtype=np.int32)
         self.clear_score = 0
         self.reward_type = args.reward_type
         assert self.reward_type in ["score_empty_higher", "score", "higher", "empty_higher"]
+        self.n_step = 0
+        self.score = 0
         self.reset()
 
     def reset(self):
         init_places = np.random.choice(a=np.array([5, 6, 9, 10], dtype=np.int32), size=2, replace=False)
-        init_digitals = np.random.choice(a=np.array([2, 4], dtype=np.int32), size=2, replace=True)
-        self.board = np.zeros(shape=[HEIGHT, WIDTH])
+        init_digital = np.random.choice(a=np.array([2, 4], dtype=np.int32), size=2, replace=True)
+        self.board = np.zeros(shape=[Game2048.HEIGHT, Game2048.WIDTH])
         self.n_step = 0
         self.score = 0
         for i in range(2):
-            self.board[init_places[i] // HEIGHT][init_places[i] % WIDTH] = init_digitals[i]
+            self.board[init_places[i] // Game2048.HEIGHT][init_places[i] % Game2048.WIDTH] = init_digital[i]
 
     def step(self, op):
         if op in [0, 1, 2, 3]:
@@ -34,10 +35,10 @@ class Game2048(object):
         next_board, clear_score = self._move(self.board.copy(), op_num)
         done = False
 
-        score_reward = np.log2(clear_score+1) / 10.0
+        score_reward = np.log2(clear_score + 1) / 10.0
         empty_reward = np.sum(np.array(next_board) == 0) - np.sum(np.array(self.board) == 0)
         higher_reward = np.log2(np.max(next_board)) / 10.0 if np.max(next_board) != np.max(self.board) else 0
-        
+
         if self.reward_type == "score_empty_higher":
             reward = score_reward + empty_reward + higher_reward
         elif self.reward_type == "score":
@@ -53,7 +54,7 @@ class Game2048(object):
             done = True
 
         if not done:
-            #     # 随机产生新点
+            #  Generate new position randomly
             if np.sum(next_board == 0) == 0:
                 done = False
                 return next_board, reward, done
@@ -76,24 +77,25 @@ class Game2048(object):
                 return False
         return True
 
-    def _line_squeeze(self, line, inv):
+    @staticmethod
+    def _line_squeeze(line, inv):
         # push box
         i, j = 3 if inv else 0, 3 if inv else 0
         d = -1 if inv else 1
-        while ((j >= 0) if inv else (j < 4)):
+        while (j >= 0) if inv else (j < 4):
             if line[j] != 0:
                 t = line[j]
                 line[j] = 0
                 line[i] = t
-                i += d   
+                i += d
             j += d
         return line
-    
+
     def _line_combine(self, line, inv):
         # combine box with same value
         i = 3 if inv else 0
         d = -1 if inv else 1
-        while ((i >= 1) if inv else (i < 3)):
+        while (i >= 1) if inv else (i < 3):
             if line[i] != 0 and line[i] == line[i + d]:
                 line[i] += line[i + d]
                 self.clear_score += line[i]
@@ -101,20 +103,23 @@ class Game2048(object):
                 i += d
             i += d
         return line
-        
+
     def _move(self, board, op_num):
         self.clear_score = 0
-        inv = (op_num % 2 == 1) # inverse direction
-        f = lambda line: self._line_squeeze(self._line_combine(self._line_squeeze(line, inv), inv), inv)
+        inv = (op_num % 2 == 1)  # inverse direction
+
+        def f(line):
+            return self._line_squeeze(self._line_combine(self._line_squeeze(line, inv), inv), inv)
+
         for i in range(4):
             if op_num < 2:
-                board[:,i] = f(board[:,i])
+                board[:, i] = f(board[:, i])
             else:
-                board[i,:] = f(board[i,:])
+                board[i, :] = f(board[i, :])
         return board, self.clear_score
 
     def get_plat_state(self):
-        return self.board.reshape([-1,])
+        return self.board.reshape([-1, ])
 
     def get_state(self):
         return self.board.copy()
@@ -127,7 +132,7 @@ class Game2048(object):
 
     def play_human(self):
 
-        while(True):
+        while True:
             self.show_game()
             digit = input()
             print('your op:', digit)
