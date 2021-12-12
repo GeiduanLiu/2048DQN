@@ -6,7 +6,7 @@ import torch
 from tqdm import tqdm
 
 from environment.game_2048 import Game2048
-from model.model import DeepQNetwork
+from model.DeepQNetwork import DeepQNetwork
 
 
 def evaluate(RL, game, train_episode, times):

@@ -1,2 +1,2 @@
-__all__ = ['model', 'model_architecture']
-from model.model import DeepQNetwork
+__all__ = ['DeepQNetwork', 'Layers']
+from model.DeepQNetwork import DeepQNetwork

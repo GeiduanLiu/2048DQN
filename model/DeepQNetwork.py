@@ -3,7 +3,7 @@ import torch
 from torch.nn.modules import MSELoss
 from torch.optim import Adam, lr_scheduler
 
-from model_architecture import Conv2, CNNPool, CNN
+from model.Layers import Conv2, CNNPool, CNN
 
 
 class DeepQNetwork:
