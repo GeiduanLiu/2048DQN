@@ -6,10 +6,10 @@ import torch
 from tqdm import tqdm
 
 from environment.game_2048 import Game2048
-from model import DeepQNetwork
+from model.model import DeepQNetwork
 
 
-def evaluate(train_episode, times):
+def evaluate(RL, game, train_episode, times):
     print("evaluate")
     score_list = []
     max_tile_list = []
@@ -31,13 +31,14 @@ def evaluate(train_episode, times):
     print(output_str)
 
 
-def test_2048(args):
+def test_2048(RL, game, args):
     RL.load_model(args.test_model)
-    evaluate("test", args.test_times)
+    evaluate(RL, game, "test", args.test_times)
 
 
-def train_2048(args):
+def train_2048(RL, game, args):
     step = 0
+    episode = 0
     for episode in range(args.episode):
         RL.episode = episode
         if (episode + 1) % args.target_replace_episode == 0:
@@ -66,14 +67,14 @@ def train_2048(args):
 
         if episode > args.start_evaluate_episode and (episode + 1) % args.evaluate_episode == 0:
             RL.save_model(episode + 1)
-            evaluate(episode, args.evaluate_times)
+            evaluate(RL, game, episode, args.evaluate_times)
 
     print('game over')
     RL.save_model(episode + 1)
     print('model saved!')
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='2048 DQN model')
     parser.add_argument('--mode', type=str, default="train", help="train or test")
     parser.add_argument('--test_model', type=str, default=None, help="test model")
@@ -117,6 +118,10 @@ if __name__ == '__main__':
                       args=args)
 
     if args.mode == "train":
-        train_2048(args)
+        train_2048(RL, game, args)
     elif args.mode == "test":
-        test_2048(args)
+        test_2048(RL, game, args)
+
+
+if __name__ == '__main__':
+    main()
