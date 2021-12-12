@@ -60,6 +60,7 @@ class DeepQNetwork:
         return action_index
 
     def _build_net_cnn(self):
+        print(self.model_type)
         if self.model_type == "Conv2":
             self.q_eval_model = Conv2(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
             self.q_target_model = Conv2(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
