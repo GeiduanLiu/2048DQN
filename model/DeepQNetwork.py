@@ -1,12 +1,10 @@
-
-
 import numpy as np
-from numpy.lib.arraypad import pad
-import torch 
-from torch.optim import Adam,lr_scheduler
+import torch
 from torch.nn.modules import MSELoss
-from model_archetecture import Conv2, cnnpool, cnn
-import os 
+from torch.optim import Adam, lr_scheduler
+
+from model.Layers import Conv2, CNNPool, CNN
+
 
 class DeepQNetwork:
     def __init__(self,
@@ -29,18 +27,19 @@ class DeepQNetwork:
         self.batch_size = args.batch_size
         self.epsilon = args.epsilon
         self.game = gameref
-        self.use_cuda=use_cuda
+        self.use_cuda = use_cuda
         self.learn_step_counter = 0
+        self.memory_counter = 0
         self.episode = 0
         self.modeldir = model_dir
         self.model_type = args.model_type
         self.embedding_type = args.embedding_type
-        #self.learn_step_counter = 0
         self._build_net_cnn()
         # 存储空间下标：0-31:S, 32-63:S_, 64:action, 65:reward
         self.memory = np.zeros((self.memory_size, self.n_features[0] * self.n_features[1] * 2 + 2))
 
-    def preprocess_state(self, state):  # 预处理
+    @staticmethod
+    def preprocess_state(state):  # Preprocess
         return np.floor(np.log2(state + 1)).astype("int64")
 
     def choose_action(self, state, det=True):
@@ -48,44 +47,49 @@ class DeepQNetwork:
         tstate = state[np.newaxis, :, :]
         tstate = torch.LongTensor(self.preprocess_state(tstate)).to('cuda' if self.use_cuda else 'cpu')
         if det and np.random.uniform() < self.epsilon:
-            action_value = [np.random.random() if self.game.has_score(state.reshape([4, 4]), i) else -1 for i in range(4)]
+            action_value = [np.random.random() if self.game.has_score(state.reshape([4, 4]), i) else -1 for i in
+                            range(4)]
             action_index = np.argmax(action_value)
         else:
             action_value = self.q_eval_model(tstate)
             action_value = np.squeeze(action_value.detach().cpu().numpy())
-            action_value = [action_value[i] if self.game.has_score(state.reshape([4, 4]), i) else np.min(action_value) - 10 for i in range(4)]
+            action_value = [
+                action_value[i] if self.game.has_score(state.reshape([4, 4]), i) else np.min(action_value) - 10 for i in
+                range(4)]
             action_index = np.argmax(action_value)
         return action_index
 
     def _build_net_cnn(self):
+        print(self.model_type)
         if self.model_type == "Conv2":
             self.q_eval_model = Conv2(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
             self.q_target_model = Conv2(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
 
-        elif self.model_type == "cnnpool":
-            self.q_eval_model = cnnpool(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
-            self.q_target_model = cnnpool(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
+        elif self.model_type == "CNNPool":
+            self.q_eval_model = CNNPool(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
+            self.q_target_model = CNNPool(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
 
-        elif self.model_type == "cnn":
-            self.q_eval_model = cnn(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
-            self.q_target_model = cnn(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
+        elif self.model_type == "CNN":
+            self.q_eval_model = CNN(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
+            self.q_target_model = CNN(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
 
         self.opt = Adam(self.q_eval_model.parameters(), lr=self.lr)
-        self.scheduler = lr_scheduler.StepLR(self.opt,step_size=self.lr_decay_steps,gamma = self.lr_decay)
+        self.scheduler = lr_scheduler.StepLR(self.opt, step_size=self.lr_decay_steps, gamma=self.lr_decay)
         self.loss = MSELoss()
 
-    def _fit(self, input, output):
+    def _fit(self, model_input, output):
         output = output.detach()
-        pred = self.q_eval_model(input)
+        pred = self.q_eval_model(model_input)
         ploss = self.loss(pred, output)
         self.opt.zero_grad()
         ploss.backward()
         self.opt.step()
         self.scheduler.step()
-        
-        
+
         if self.learn_step_counter % self.log_steps == 0:
-            print("episode:",self.episode,"learn_step_counter:",self.learn_step_counter, "loss:",ploss.item(), "lr:",self.opt.param_groups[0]['lr'],"epsilon:",self.epsilon)
+            print(
+                "episode:", self.episode, "learn_step_counter:", self.learn_step_counter, "loss:", ploss.item(), "lr:",
+                self.opt.param_groups[0]['lr'], "epsilon:", self.epsilon)
 
     def target_replace_op(self):
         p1 = self.q_eval_model.state_dict()
@@ -110,10 +114,13 @@ class DeepQNetwork:
         batch_memory = self.memory[sample_index, :]
         n_features = self.n_features[0] * self.n_features[1]
 
-        s = torch.LongTensor(batch_memory[:, 0:n_features].reshape([-1, self.n_features[0], self.n_features[1]])).to('cuda' if self.use_cuda else 'cpu')
-        s_ = torch.LongTensor(batch_memory[:, n_features:n_features*2].reshape([-1, self.n_features[0], self.n_features[1]])).to('cuda' if self.use_cuda else 'cpu')
-        a = torch.Tensor(batch_memory[:, n_features*2]).long().to('cuda' if self.use_cuda else 'cpu')
-        r = torch.Tensor(batch_memory[:, n_features*2+1]).to('cuda' if self.use_cuda else 'cpu')
+        s = torch.LongTensor(batch_memory[:, 0:n_features].reshape([-1, self.n_features[0], self.n_features[1]])).to(
+            'cuda' if self.use_cuda else 'cpu')
+        s_ = torch.LongTensor(
+            batch_memory[:, n_features:n_features * 2].reshape([-1, self.n_features[0], self.n_features[1]])).to(
+            'cuda' if self.use_cuda else 'cpu')
+        a = torch.Tensor(batch_memory[:, n_features * 2]).long().to('cuda' if self.use_cuda else 'cpu')
+        r = torch.Tensor(batch_memory[:, n_features * 2 + 1]).to('cuda' if self.use_cuda else 'cpu')
         q_next = self.q_target_model(s_)
         q_eval = self.q_eval_model(s)
 
@@ -127,6 +134,7 @@ class DeepQNetwork:
 
     def save_model(self, episode):
         torch.save(self.q_eval_model.state_dict(), '{}/2048-{}.h5'.format(self.modeldir, episode))
-    
+
     def load_model(self, model_path):
-        self.q_eval_model.load_state_dict(torch.load(model_path, map_location=lambda a, b: a if self.use_cuda==False else None))
+        self.q_eval_model.load_state_dict(
+            torch.load(model_path, map_location=lambda a, b: a if self.use_cuda is False else None))

@@ -1,7 +1,5 @@
-from game_2048 import Game2048
-import numpy as np
+import environment.game_2048
 
-
-game = Game2048()
-#print(game.get_plat_state())
+game = environment.game_2048.Game2048()
+# print(game.get_plat_state())
 game.play_human()
