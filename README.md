@@ -1,13 +1,18 @@
 # 2048DQN
 
-#### 环境
+This is a course project of the 2048 Game for PKU's graduate students' lecture *Reinforcement Learning* in Autumn 2021.
 
-python 3.6 torch 1.6（其他环境也可能可以正常运行）
+#### Environment
 
-#### 模型
+Python >= 3.7 
+PyTorch >= 1.6
 
-总共有三种网络结构和两种编码方式，详细可见model_archetecture.py
+Please pay attention that Python versions earlier than 3.7 may not support this project. F-string is widely used in this project for performance. However, earlier versions of Python do not support f-string.
 
-#### 超参数
+#### Model
 
-很多超参数，在play_human.py中定义
+We implement three network architectures and two encoding methods. For details, please read `model/Layers.py`
+
+#### Hyperparameters
+
+This project involves many carefully-designed hyperparameters defined in `play_human.py`.
