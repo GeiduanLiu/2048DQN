@@ -1,9 +1,8 @@
-from typing import List
-
 import numpy as np
 import torch
 from torch.nn.modules import MSELoss
 from torch.optim import Adam, lr_scheduler
+from tqdm import tqdm
 
 from model.Layers import Conv2, CNNPool, CNN
 from environment.game_2048 import Game2048
@@ -51,25 +50,27 @@ class DeepQNetwork:
         :param det:
         :return:
         """
-        if type(state) is List:
+        if type(state) is list:
             tstate = np.asarray(state)
         else:
             tstate = state[np.newaxis, :, :]
-        tstate = self.preprocess_state(tstate).to('cuda' if self.use_cuda else 'cpu')
+        tensor_tstate = self.preprocess_state(tstate).to('cuda' if self.use_cuda else 'cpu')
         if det and np.random.uniform() < self.epsilon:
-            action_value = np.asarray([[np.random.random() if Game2048.has_score(state[j, :, :], i) else -1 for i in
-                                        range(4)] for j in range(state.shape[0])])
+            action_value = np.asarray([[np.random.random() if Game2048.has_score(tstate[j, :, :], i) else -1
+                                        for i in range(4)] for j in range(tstate.shape[0])])
             action_index = np.argmax(action_value, axis=-1)
         else:
-            action_value = self.q_eval_model(tstate)
+            self.q_eval_model.eval()
+            with torch.no_grad():
+                action_value = self.q_eval_model(tensor_tstate)
             action_value = action_value.detach().cpu().numpy()
             action_value = [[
-                action_value[j, i] if Game2048.has_score(state[j, :, :], i) else np.min(action_value[j, :]) - 10 for i in
-                range(4)] for j in state.shape[0]]
+                action_value[j, i] if Game2048.has_score(tstate[j, :, :], i) else np.min(action_value[j, :]) - 10
+                for i in range(4)] for j in range(tstate.shape[0])]
             action_index = np.argmax(action_value, axis=-1)
 
         action_index = [np.squeeze(e, 0) for e in np.split(action_index, action_index.shape[0], axis=0)]
-        if type(state) is List:
+        if type(state) is list:
             return action_index
         else:
             return action_index[0]
@@ -88,6 +89,8 @@ class DeepQNetwork:
             self.q_eval_model = CNN(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
             self.q_target_model = CNN(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
 
+        self.q_target_model.eval()
+        self.q_eval_model.train()
         self.opt = Adam(self.q_eval_model.parameters(), lr=self.lr)
         self.scheduler = lr_scheduler.StepLR(self.opt, step_size=self.lr_decay_steps, gamma=self.lr_decay)
         self.loss = MSELoss()
@@ -102,13 +105,13 @@ class DeepQNetwork:
         self.scheduler.step()
 
         if self.learn_step_counter % self.log_steps == 0:
-            print(
-                "episode:", self.episode, "learn_step_counter:", self.learn_step_counter, "loss:", ploss.item(), "lr:",
-                self.opt.param_groups[0]['lr'], "epsilon:", self.epsilon)
+            tqdm.write(f'Episode: {self.episode}; learn_step: {self.learn_step_counter}; loss: {ploss.item()}; '
+                       f'lr: {self.opt.param_groups[0]["lr"]}, "epsilon": {self.epsilon}')
 
     def target_replace_op(self):
         p1 = self.q_eval_model.state_dict()
         self.q_target_model.load_state_dict(p1)
+        self.q_target_model.eval()
 
     def store_memory(self, s, s_, a, r):
         if not hasattr(self, 'memory_counter'):
@@ -136,13 +139,16 @@ class DeepQNetwork:
             'cuda' if self.use_cuda else 'cpu')
         a = torch.Tensor(batch_memory[:, n_features * 2]).long().to('cuda' if self.use_cuda else 'cpu')
         r = torch.Tensor(batch_memory[:, n_features * 2 + 1]).to('cuda' if self.use_cuda else 'cpu')
-        q_next = self.q_target_model(s_)
-        q_eval = self.q_eval_model(s)
+        self.q_eval_model.eval()
+        with torch.no_grad():
+            q_next = self.q_target_model(s_)
+            q_eval = self.q_eval_model(s)
 
         q_target = q_eval.clone()
         batch_index = np.arange(self.batch_size, dtype=np.int32)
         q_target[batch_index, a] = r + self.gamma * torch.max(q_next, dim=1)[0]
 
+        self.q_eval_model.train()
         self._fit(s, q_target)
 
         self.learn_step_counter += 1

@@ -10,10 +10,10 @@ from model.DeepQNetwork import DeepQNetwork
 
 
 def evaluate(player, game, train_episode, times):
-    print("evaluate")
+    tqdm.write("evaluate")
     score_list = []
     max_tile_list = []
-    for _ in tqdm(range(times)):
+    for _ in range(times):
         game.reset()
         s = game.get_state()
         while True:
@@ -28,7 +28,7 @@ def evaluate(player, game, train_episode, times):
     output_str = "episode: %s, avg_score: %.2f, " % (str(train_episode), sum(score_list) / times)
     for max_tile in [4096, 2048, 1024, 512, 256]:
         output_str += "max_tile %d rate: %.2f%%, " % (max_tile, max_tile_list.count(max_tile) * 100 / times)
-    print(output_str)
+    tqdm.write(output_str)
 
 
 def test_2048(player, game, args):
@@ -47,6 +47,7 @@ def train_2048(player, games, eval_game, args):
     :return:
     """
     n_games = len(games)
+    print(f"{n_games} game running in parallel")
     step = 0
     epsilon_update_phase = 0
     weight_update_phase = 0
@@ -56,45 +57,48 @@ def train_2048(player, games, eval_game, args):
     [game.reset() for game in games]
     states = [game.get_state() for game in games]
 
-    while episode < args.episode:
-        # play a step across the games
-        action_index = player.choose_action(states)
-        updates = [game.step(index) for game, index in zip(games, action_index)]  # (s_, r, done)
-        [player.store_memory(s.reshape([-1, ]), s_.reshape([-1, ]), action_index, r) for s, (s_, r, done) in updates]
-        step += n_games
+    with tqdm(total=args.episode, desc="episode") as pbar:
+        while episode < args.episode:
+            # play a step across the games
+            action_index = player.choose_action(states)
+            updates = [game.step(index) for game, index in zip(games, action_index)]  # (s_, r, done)
+            [player.store_memory(s.reshape([-1, ]), s_.reshape([-1, ]), action, r)
+             for s, action, (s_, r, done) in zip(states, action_index, updates)]
+            step += n_games
 
-        # check if there's any games finished
-        finished = [update[-1] for update in updates]
-        n_finised = sum(finished)
+            # check if there's any games finished
+            finished = [update[-1] for update in updates]
+            n_finised = sum(finished)
 
-        # update the episode counts
-        episode += n_finised
-        player.episode = episode
+            # update the episode counts
+            episode += n_finised
+            pbar.update(n_finised)
+            player.episode = episode
 
-        # update the epsilon
-        if episode > 10000 or (player.epsilon > 0.1 and step // 2500 > epsilon_update_phase):
-            player.epsilon = player.epsilon / 1.005
-            epsilon_update_phase = step // 2500
+            # update the epsilon
+            if episode > 10000 or (player.epsilon > 0.1 and step // 2500 > epsilon_update_phase):
+                player.epsilon = player.epsilon / 1.005
+                epsilon_update_phase = step // 2500
 
-        # Update the network if ok
-        if episode > args.start_train_episode and n_finised > 0:
-            for i in range(args.train_epoch):
-                player.learn()
+            # Update the network if ok
+            if episode > args.start_train_episode and n_finised > 0:
+                for i in range(args.train_epoch):
+                    player.learn()
 
-        # Update the games states
-        [game.reset() if finish else None for game, finish in zip(games, finished)]
-        states = [s_ if done else game.get_state() for game, (s_, r, done) in zip(games, updates)]
+            # Update the games states
+            [game.reset() if finish else None for game, finish in zip(games, finished)]
+            states = [s_ if done else game.get_state() for game, (s_, r, done) in zip(games, updates)]
 
-        # update the memory
-        if episode // args.target_replace_episode > weight_update_phase:
-            player.target_replace_op()
-            weight_update_phase = episode // args.target_replace_episode
+            # update the memory
+            if episode // args.target_replace_episode > weight_update_phase:
+                player.target_replace_op()
+                weight_update_phase = episode // args.target_replace_episode
 
-        # evaluate
-        if episode > args.start_evaluate_episode and episode // args.evaluate_episode > evaluate_update_phase:
-            player.save_model(episode + 1)
-            evaluate(player, eval_game, episode, args.evaluate_times)
-            evaluate_update_phase = episode // args.evaluate_episode
+            # evaluate
+            if episode > args.start_evaluate_episode and episode // args.evaluate_episode > evaluate_update_phase:
+                player.save_model(episode + 1)
+                evaluate(player, eval_game, episode, args.evaluate_times)
+                evaluate_update_phase = episode // args.evaluate_episode
 
     print('games over')
     player.save_model(episode)
