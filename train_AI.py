@@ -7,7 +7,9 @@ from tqdm import tqdm
 
 from environment.game_2048 import Game2048
 from model.DeepQNetwork import DeepQNetwork
+from model.BootstrapDQN import BootstrapDQN
 
+SUPPORT_PLAYER = ('vanilla', 'bootstrap')
 
 def evaluate(player, game, train_episode, times):
     tqdm.write("evaluate")
@@ -73,7 +75,7 @@ def train_2048(player, games, eval_game, args):
             # update the episode counts
             episode += n_finised
             pbar.update(n_finised)
-            player.episode = episode
+            player.update_episode(episode)
 
             # update the epsilon
             if player.epsilon > 0.01 and n_finised > 0 and episode//200 > epsilon_update_phase:
@@ -107,6 +109,7 @@ def train_2048(player, games, eval_game, args):
 def main():
     parser = argparse.ArgumentParser(description='2048 DQN model')
     parser.add_argument('--mode', type=str, default="train", help="train or test")
+    parser.add_argument('--player', type=str, default='vanilla', help='choose player: vanilla or bootstrap')
     parser.add_argument('--test_model', type=str, default=None, help="test model")
     parser.add_argument('--test_times', type=int, default=10000, help='test times')
     parser.add_argument('--episode', type=int, default=200000, help="episode")
@@ -128,11 +131,16 @@ def main():
     parser.add_argument('--train_epoch', type=int, default=10, help='training epochs per episode')
     parser.add_argument('--start_train_episode', type=int, default=300, help="when to start train")
     parser.add_argument('--start_evaluate_episode', type=int, default=1000, help="when to start evaluate")
+    # Parameter for Bootstrap
+    parser.add_argument("--n_heads", type=int, default=5, help="For bootstrap: how many heads")
 
     args = parser.parse_args()
+
+    if args.player not in SUPPORT_PLAYER:
+        raise ValueError(f"Unknown player type {args.player}")
     print(args)
 
-    model_dir = "save/%s_%s" % (args.model_type, args.embedding_type)
+    model_dir = f"save/{args.player}/{args.model_type}_{args.embedding_type}"
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
 
@@ -141,11 +149,19 @@ def main():
     games = [Game2048(args) for _ in range(64)]
     eval_game = Game2048(args)
 
-    player = DeepQNetwork(n_actions=games[0].n_actions,
-                          n_features=games[0].n_features,
-                          use_cuda=use_cuda,
-                          model_dir=model_dir,
-                          args=args)
+    if args.player == 'vanilla':
+        player = DeepQNetwork(n_actions=games[0].n_actions,
+                              n_features=games[0].n_features,
+                              use_cuda=use_cuda,
+                              model_dir=model_dir,
+                              args=args)
+    else:
+        player = BootstrapDQN(n_actions=games[0].n_actions,
+                              n_features=games[0].n_features,
+                              n_heads=args.n_heads,
+                              use_cuda=use_cuda,
+                              model_dir=model_dir,
+                              args=args)
 
     if args.mode == "train":
         train_2048(player, games, eval_game, args)
