@@ -1,16 +1,18 @@
+from typing import List
+
 import numpy as np
 import torch
 from torch.nn.modules import MSELoss
 from torch.optim import Adam, lr_scheduler
 
 from model.Layers import Conv2, CNNPool, CNN
+from environment.game_2048 import Game2048
 
 
 class DeepQNetwork:
     def __init__(self,
                  n_actions,
                  n_features,
-                 gameref,
                  model_dir,
                  args,
                  use_cuda=True,
@@ -26,7 +28,6 @@ class DeepQNetwork:
         self.memory_size = args.memory_size
         self.batch_size = args.batch_size
         self.epsilon = args.epsilon
-        self.game = gameref
         self.use_cuda = use_cuda
         self.learn_step_counter = 0
         self.memory_counter = 0
@@ -40,24 +41,38 @@ class DeepQNetwork:
 
     @staticmethod
     def preprocess_state(state):  # Preprocess
-        return np.floor(np.log2(state + 1)).astype("int64")
+        return torch.from_numpy(np.floor(np.log2(state + 1)).astype("int64")).to(torch.long)
 
     def choose_action(self, state, det=True):
+        """
+        Now it can handle a batch of states
 
-        tstate = state[np.newaxis, :, :]
-        tstate = torch.LongTensor(self.preprocess_state(tstate)).to('cuda' if self.use_cuda else 'cpu')
+        :param state: np.array(2-D) or a list of states [np.array(2-D)]
+        :param det:
+        :return:
+        """
+        if type(state) is List:
+            tstate = np.asarray(state)
+        else:
+            tstate = state[np.newaxis, :, :]
+        tstate = self.preprocess_state(tstate).to('cuda' if self.use_cuda else 'cpu')
         if det and np.random.uniform() < self.epsilon:
-            action_value = [np.random.random() if self.game.has_score(state.reshape([4, 4]), i) else -1 for i in
-                            range(4)]
-            action_index = np.argmax(action_value)
+            action_value = np.asarray([[np.random.random() if Game2048.has_score(state[j, :, :], i) else -1 for i in
+                                        range(4)] for j in range(state.shape[0])])
+            action_index = np.argmax(action_value, axis=-1)
         else:
             action_value = self.q_eval_model(tstate)
-            action_value = np.squeeze(action_value.detach().cpu().numpy())
-            action_value = [
-                action_value[i] if self.game.has_score(state.reshape([4, 4]), i) else np.min(action_value) - 10 for i in
-                range(4)]
-            action_index = np.argmax(action_value)
-        return action_index
+            action_value = action_value.detach().cpu().numpy()
+            action_value = [[
+                action_value[j, i] if Game2048.has_score(state[j, :, :], i) else np.min(action_value[j, :]) - 10 for i in
+                range(4)] for j in state.shape[0]]
+            action_index = np.argmax(action_value, axis=-1)
+
+        action_index = [np.squeeze(e, 0) for e in np.split(action_index, action_index.shape[0], axis=0)]
+        if type(state) is List:
+            return action_index
+        else:
+            return action_index[0]
 
     def _build_net_cnn(self):
         print(self.model_type)

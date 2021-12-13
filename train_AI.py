@@ -9,15 +9,15 @@ from environment.game_2048 import Game2048
 from model.DeepQNetwork import DeepQNetwork
 
 
-def evaluate(RL, game, train_episode, times):
+def evaluate(player, game, train_episode, times):
     print("evaluate")
     score_list = []
     max_tile_list = []
-    for episode in tqdm(range(times)):
+    for _ in tqdm(range(times)):
         game.reset()
         s = game.get_state()
         while True:
-            action_index = RL.choose_action(s, det=False)
+            action_index = player.choose_action(s, det=False)
             s_, r, done = game.step(action_index)
             s = s_
             if done:
@@ -31,46 +31,73 @@ def evaluate(RL, game, train_episode, times):
     print(output_str)
 
 
-def test_2048(RL, game, args):
-    RL.load_model(args.test_model)
-    evaluate(RL, game, "test", args.test_times)
+def test_2048(player, game, args):
+    player.load_model(args.test_model)
+    evaluate(player, game, "test", args.test_times)
 
 
-def train_2048(RL, game, args):
+def train_2048(player, games, eval_game, args):
+    """
+    Training process
+
+    :param player: the DQN network
+    :param games:  A list of games generator for playing in parallel
+    :param eval_game
+    :param args:
+    :return:
+    """
+    n_games = len(games)
     step = 0
+    epsilon_update_phase = 0
+    weight_update_phase = 0
+    evaluate_update_phase = 0
     episode = 0
-    for episode in range(args.episode):
-        RL.episode = episode
-        if (episode + 1) % args.target_replace_episode == 0:
-            RL.target_replace_op()
-        game.reset()
-        s = game.get_state()
-        game_step = 0
-        while True:
-            action_index = RL.choose_action(s)
-            s_, r, done = game.step(action_index)
-            # print('action:', game.actions[action_index])
-            # print('game:\n', s_, '\n')
-            if episode > 10000 or (RL.epsilon > 0.1 and step % 2500 == 0):
-                RL.epsilon = RL.epsilon / 1.005
-            RL.store_memory(s.reshape([-1, ]), s_.reshape([-1, ]), action_index, r)
+    player.episode = 0
+    [game.reset() for game in games]
+    states = [game.get_state() for game in games]
 
-            s = s_
-            if done:
-                break
-            step += 1
-            game_step += 1
+    while episode < args.episode:
+        # play a step across the games
+        action_index = player.choose_action(states)
+        updates = [game.step(index) for game, index in zip(games, action_index)]  # (s_, r, done)
+        [player.store_memory(s.reshape([-1, ]), s_.reshape([-1, ]), action_index, r) for s, (s_, r, done) in updates]
+        step += n_games
 
-        if episode > args.start_train_episode:
+        # check if there's any games finished
+        finished = [update[-1] for update in updates]
+        n_finised = sum(finished)
+
+        # update the episode counts
+        episode += n_finised
+        player.episode = episode
+
+        # update the epsilon
+        if episode > 10000 or (player.epsilon > 0.1 and step // 2500 > epsilon_update_phase):
+            player.epsilon = player.epsilon / 1.005
+            epsilon_update_phase = step // 2500
+
+        # Update the network if ok
+        if episode > args.start_train_episode and n_finised > 0:
             for i in range(args.train_epoch):
-                RL.learn()
+                player.learn()
 
-        if episode > args.start_evaluate_episode and (episode + 1) % args.evaluate_episode == 0:
-            RL.save_model(episode + 1)
-            evaluate(RL, game, episode, args.evaluate_times)
+        # Update the games states
+        [game.reset() if finish else None for game, finish in zip(games, finished)]
+        states = [s_ if done else game.get_state() for game, (s_, r, done) in zip(games, updates)]
 
-    print('game over')
-    RL.save_model(episode + 1)
+        # update the memory
+        if episode // args.target_replace_episode > weight_update_phase:
+            player.target_replace_op()
+            weight_update_phase = episode // args.target_replace_episode
+
+        # evaluate
+        if episode > args.start_evaluate_episode and episode // args.evaluate_episode > evaluate_update_phase:
+            player.save_model(episode + 1)
+            evaluate(player, eval_game, episode, args.evaluate_times)
+            evaluate_update_phase = episode // args.evaluate_episode
+
+    print('games over')
+    player.save_model(episode)
     print('model saved!')
 
 
@@ -108,19 +135,19 @@ def main():
 
     use_cuda = torch.cuda.is_available()
 
-    game = Game2048(args)
+    games = [Game2048(args) for _ in range(32)]
+    eval_game = Game2048(args)
 
-    RL = DeepQNetwork(n_actions=game.n_actions,
-                      n_features=game.n_features,
-                      gameref=game,
-                      use_cuda=use_cuda,
-                      model_dir=model_dir,
-                      args=args)
+    player = DeepQNetwork(n_actions=games[0].n_actions,
+                          n_features=games[0].n_features,
+                          use_cuda=use_cuda,
+                          model_dir=model_dir,
+                          args=args)
 
     if args.mode == "train":
-        train_2048(RL, game, args)
+        train_2048(player, games, eval_game, args)
     elif args.mode == "test":
-        test_2048(RL, game, args)
+        test_2048(player, eval_game, args)
 
 
 if __name__ == '__main__':
