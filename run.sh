@@ -1,4 +1,6 @@
-CUDA_VISIBLE_DEVICES=0 python train_AI.py \
+#!/bin/bash
+
+CUDA_VISIBLE_DEVICES="$1" python train_AI.py \
                         --model_type CNN \
                         --embedding_type emd \
                              

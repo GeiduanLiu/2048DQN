@@ -1,6 +1,17 @@
 import numpy as np
 
 
+class Counter:
+    def __init__(self):
+        self.clear_score = 0
+
+    def update(self, score):
+        self.clear_score += score
+
+    def get_score(self) -> int:
+        return self.clear_score
+
+
 class Game2048(object):
     HEIGHT = 4
     WIDTH = 4
@@ -10,7 +21,6 @@ class Game2048(object):
         self.n_actions = len(self.actions)
         self.n_features = np.array([Game2048.HEIGHT, Game2048.WIDTH])
         self.board = np.zeros(shape=[Game2048.HEIGHT, Game2048.WIDTH], dtype=np.int32)
-        self.clear_score = 0
         self.reward_type = args.reward_type
         assert self.reward_type in ["score_empty_higher", "score", "higher", "empty_higher"]
         self.n_step = 0
@@ -67,8 +77,9 @@ class Game2048(object):
             self.n_step += 1
         return next_board, reward, done
 
-    def has_score(self, board, action):
-        tmp_board, _ = self._move(board.copy(), action)
+    @staticmethod
+    def has_score(board, action):
+        tmp_board, _ = Game2048._move(board.copy(), action)
         return np.sum(np.abs(tmp_board - board))
 
     def _terminal(self, board):
@@ -91,32 +102,34 @@ class Game2048(object):
             j += d
         return line
 
-    def _line_combine(self, line, inv):
+    @staticmethod
+    def _line_combine(line, inv, clear_score: Counter):
         # combine box with same value
         i = 3 if inv else 0
         d = -1 if inv else 1
         while (i >= 1) if inv else (i < 3):
             if line[i] != 0 and line[i] == line[i + d]:
                 line[i] += line[i + d]
-                self.clear_score += line[i]
+                clear_score.update(line[i])
                 line[i + d] = 0
                 i += d
             i += d
         return line
 
-    def _move(self, board, op_num):
-        self.clear_score = 0
+    @staticmethod
+    def _move(board, op_num):
+        clear_score = Counter()
         inv = (op_num % 2 == 1)  # inverse direction
 
-        def f(line):
-            return self._line_squeeze(self._line_combine(self._line_squeeze(line, inv), inv), inv)
+        def f(line, _clear_score):
+            return Game2048._line_squeeze(Game2048._line_combine(Game2048._line_squeeze(line, inv), inv, _clear_score), inv)
 
         for i in range(4):
             if op_num < 2:
-                board[:, i] = f(board[:, i])
+                board[:, i] = f(board[:, i], clear_score)
             else:
-                board[i, :] = f(board[i, :])
-        return board, self.clear_score
+                board[i, :] = f(board[i, :], clear_score)
+        return board, clear_score.get_score()
 
     def get_plat_state(self):
         return self.board.reshape([-1, ])
