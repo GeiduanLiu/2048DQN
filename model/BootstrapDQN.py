@@ -4,11 +4,12 @@ from torch.nn.modules import MSELoss
 from torch.optim import Adam, lr_scheduler
 from tqdm import tqdm
 
+from model.DQNPlayer import DQNPlayer
 from model.Layers import MultiHeadCNN
 from environment.game_2048 import Game2048
 
 
-class BootstrapDQN:
+class BootstrapDQN(DQNPlayer):
     def __init__(self,
                  n_actions,
                  n_features,
@@ -17,6 +18,7 @@ class BootstrapDQN:
                  args,
                  use_cuda=True,
                  ):
+        super(BootstrapDQN, self).__init__()
         self.n_actions = n_actions
         self.n_features = n_features
         self.n_heads = n_heads
@@ -44,7 +46,7 @@ class BootstrapDQN:
     def _choose_head(self):
         return np.random.randint(0, self.n_heads)
 
-    def update_episode(self, episode):
+    def update_episode(self, episode, *args, **kwargs):
         if episode != self.episode:
             self.cur_head = self._choose_head()
             self.episode = episode
@@ -61,7 +63,7 @@ class BootstrapDQN:
             else:
                 action_values[bsz_idx, act_idx] = torch.min(action_values[bsz_idx, :]) - 10
 
-    def choose_action(self, state, det=True):
+    def choose_action(self, state, *args, det=True, **kwargs):
         """
         Now it can handle a batch of states
 
@@ -122,10 +124,10 @@ class BootstrapDQN:
 
         :param input_states:
         :param update_actions: [bsz]
-        :param target_q: [bsz]
+        :param target_q: [bsz, n_heads]
         :return:
         """
-        output = torch.tile(target_q.detach().unsqueeze(-1), (1, self.q_eval_model.n_heads))
+        output = target_q.detach()
         update_actions = torch.tile(update_actions.detach().unsqueeze(-1), (1, self.q_eval_model.n_heads)) \
             .reshape([-1])
         action_values = self.q_eval_model(input_states).reshape([-1, 4])
@@ -179,9 +181,10 @@ class BootstrapDQN:
             r = torch.Tensor(batch_memory[:, n_features * 2 + 1]).to('cuda' if self.use_cuda else 'cpu')
 
             with torch.no_grad():
-                q_next = self.q_target_model.get_value(s_, self.cur_head)
+                q_next = self.q_target_model.get_value(s_)  # [bsz, n_heads, 4]
 
-            q_target = r + self.gamma * torch.max(q_next, dim=1)[0]  # [bsz]
+            r = torch.unsqueeze(r, -1)
+            q_target = r + self.gamma * torch.max(q_next, dim=-1)[0]  # [bsz, n_heads]
 
             self._fit(s, a, q_target)
 

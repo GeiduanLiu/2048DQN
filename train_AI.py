@@ -55,7 +55,7 @@ def train_2048(player, games, eval_game, args):
     weight_update_phase = 0
     evaluate_update_phase = 0
     episode = 0
-    player.episode = 0
+    player.update_episode(episode)
     [game.reset() for game in games]
     states = [game.get_state() for game in games]
 
