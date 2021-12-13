@@ -76,9 +76,9 @@ def train_2048(player, games, eval_game, args):
             player.episode = episode
 
             # update the epsilon
-            if episode > 10000 or (player.epsilon > 0.1 and step // 2500 > epsilon_update_phase):
+            if player.epsilon > 0.01 and n_finised > 0 and episode//200 > epsilon_update_phase:
                 player.epsilon = player.epsilon / 1.005
-                epsilon_update_phase = step // 2500
+                epsilon_update_phase = episode // 200
 
             # Update the network if ok
             if episode > args.start_train_episode and n_finised > 0:
@@ -138,7 +138,7 @@ def main():
 
     use_cuda = torch.cuda.is_available()
 
-    games = [Game2048(args) for _ in range(args.batch_size)]
+    games = [Game2048(args) for _ in range(64)]
     eval_game = Game2048(args)
 
     player = DeepQNetwork(n_actions=games[0].n_actions,
