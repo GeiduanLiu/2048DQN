@@ -60,7 +60,6 @@ class DeepQNetwork:
                                         for i in range(4)] for j in range(tstate.shape[0])])
             action_index = np.argmax(action_value, axis=-1)
         else:
-            self.q_eval_model.eval()
             with torch.no_grad():
                 action_value = self.q_eval_model(tensor_tstate)
             action_value = action_value.detach().cpu().numpy()
@@ -90,14 +89,14 @@ class DeepQNetwork:
             self.q_target_model = CNN(self.embedding_type).to('cuda' if self.use_cuda else 'cpu')
 
         self.q_target_model.eval()
-        self.q_eval_model.train()
+        self.q_eval_model.eval()
         self.opt = Adam(self.q_eval_model.parameters(), lr=self.lr)
         self.scheduler = lr_scheduler.StepLR(self.opt, step_size=self.lr_decay_steps, gamma=self.lr_decay)
         self.loss = MSELoss()
 
-    def _fit(self, model_input, output):
-        output = output.detach()
-        pred = self.q_eval_model(model_input)
+    def _fit(self, input_states, update_actions, target_q):
+        output = target_q.detach()
+        pred = self.q_eval_model(input_states)[np.arange(self.batch_size, dtype=np.int32), update_actions]
         ploss = self.loss(pred, output)
         self.opt.zero_grad()
         ploss.backward()
@@ -123,35 +122,33 @@ class DeepQNetwork:
         self.memory[index, :] = memory
         self.memory_counter += 1
 
-    def learn(self):
-
-        if self.memory_counter > self.memory_size:
-            sample_index = np.random.choice(self.memory_size, size=self.batch_size)
-        else:
-            sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
-        batch_memory = self.memory[sample_index, :]
-        n_features = self.n_features[0] * self.n_features[1]
-
-        s = torch.LongTensor(batch_memory[:, 0:n_features].reshape([-1, self.n_features[0], self.n_features[1]])).to(
-            'cuda' if self.use_cuda else 'cpu')
-        s_ = torch.LongTensor(
-            batch_memory[:, n_features:n_features * 2].reshape([-1, self.n_features[0], self.n_features[1]])).to(
-            'cuda' if self.use_cuda else 'cpu')
-        a = torch.Tensor(batch_memory[:, n_features * 2]).long().to('cuda' if self.use_cuda else 'cpu')
-        r = torch.Tensor(batch_memory[:, n_features * 2 + 1]).to('cuda' if self.use_cuda else 'cpu')
-        self.q_eval_model.eval()
-        with torch.no_grad():
-            q_next = self.q_target_model(s_)
-            q_eval = self.q_eval_model(s)
-
-        q_target = q_eval.clone()
-        batch_index = np.arange(self.batch_size, dtype=np.int32)
-        q_target[batch_index, a] = r + self.gamma * torch.max(q_next, dim=1)[0]
-
+    def learn(self, n_epoch):
         self.q_eval_model.train()
-        self._fit(s, q_target)
+        for _ in range(n_epoch):
+            if self.memory_counter > self.memory_size:
+                sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+            else:
+                sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
+            batch_memory = self.memory[sample_index, :]
+            n_features = self.n_features[0] * self.n_features[1]
 
-        self.learn_step_counter += 1
+            s = torch.LongTensor(batch_memory[:, 0:n_features].reshape([-1, self.n_features[0], self.n_features[1]])).to(
+                'cuda' if self.use_cuda else 'cpu')
+            s_ = torch.LongTensor(
+                batch_memory[:, n_features:n_features * 2].reshape([-1, self.n_features[0], self.n_features[1]])).to(
+                'cuda' if self.use_cuda else 'cpu')
+            a = torch.Tensor(batch_memory[:, n_features * 2]).long().to('cuda' if self.use_cuda else 'cpu')
+            r = torch.Tensor(batch_memory[:, n_features * 2 + 1]).to('cuda' if self.use_cuda else 'cpu')
+
+            with torch.no_grad():
+                q_next = self.q_target_model(s_)
+
+            q_target = r + self.gamma * torch.max(q_next, dim=1)[0]
+
+            self._fit(s, a, q_target)
+
+            self.learn_step_counter += 1
+        self.q_eval_model.eval()
 
     def save_model(self, episode):
         torch.save(self.q_eval_model.state_dict(), '{}/2048-{}.h5'.format(self.modeldir, episode))

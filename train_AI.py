@@ -82,8 +82,7 @@ def train_2048(player, games, eval_game, args):
 
             # Update the network if ok
             if episode > args.start_train_episode and n_finised > 0:
-                for i in range(args.train_epoch):
-                    player.learn()
+                player.learn(args.train_epoch)
 
             # Update the games states
             [game.reset() if finish else None for game, finish in zip(games, finished)]
@@ -133,13 +132,13 @@ def main():
     args = parser.parse_args()
     print(args)
 
-    model_dir = "model/%s_%s" % (args.model_type, args.embedding_type)
+    model_dir = "save/%s_%s" % (args.model_type, args.embedding_type)
     if not os.path.exists(model_dir):
-        os.mkdir(model_dir)
+        os.makedirs(model_dir)
 
     use_cuda = torch.cuda.is_available()
 
-    games = [Game2048(args) for _ in range(32)]
+    games = [Game2048(args) for _ in range(args.batch_size)]
     eval_game = Game2048(args)
 
     player = DeepQNetwork(n_actions=games[0].n_actions,
