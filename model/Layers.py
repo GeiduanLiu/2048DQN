@@ -117,3 +117,40 @@ class CNN(torch.nn.Module):
         x = torch.reshape(x, [-1, 2048])
         output = self.fc(x)
         return output
+
+
+class MultiHeadCNN(CNN):
+    def __init__(self, emb_type="emd", n_heads=5):
+        super(MultiHeadCNN, self).__init__(emb_type)
+        self.n_heads = n_heads
+        del self.fc
+        self.fc = Sequential(
+            Linear(2048, 256),
+            LeakyReLU(),
+            Linear(256, 4*n_heads)
+        )
+
+    def get_poisson_mask(self):
+        """
+        get mask
+        :return: mask: [1, self.n_heads]
+        """
+        mask = torch.nn.Parameter(torch.poisson(torch.ones([1, self.n_heads])))
+        return mask
+
+    def forward(self, x):
+        return super(MultiHeadCNN, self).forward(x)
+
+    def get_value(self, states, head=None):
+        head_values = self(states).reshape([-1, self.n_heads, 4])
+        if head is not None:
+            return head_values[:, head, :]
+        else:
+            return head_values
+
+    def get_action(self, states):
+        head_choices = self(states).reshape([-1, self.n_heads, 4]).argmax(dim=-1)  # [bsz, n_heads]
+        target = torch.zeros(head_choices.shape[0], 4, dtype=head_choices.dtype, device=head_choices.device)
+        values = torch.ones_like(head_choices)
+        target.scatter_add_(1, head_choices, values)
+        return torch.argmax(target, dim=-1)  # [bsz, n_heads]
