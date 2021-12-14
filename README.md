@@ -15,4 +15,13 @@ We implement three network architectures and two encoding methods. For details, 
 
 #### Hyperparameters
 
-This project involves many carefully-designed hyperparameters defined in `play_human.py`.
+This project involves many carefully-designed hyperparameters defined in `train_AI.py`.
+
+#### Results
+##### DQN Baseline
+We use the default hyperparameters in `train_AI.py` for training (20w episodes)
+
+|     | Avg_score  | |
+|  ----  | ----  | ---- |
+| 单元格  | 单元格 |      |
+| 单元格  | 单元格 |      |
