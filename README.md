@@ -24,5 +24,5 @@ We use the default hyperparameters in `train_AI.py` for training (20w episodes)
 |               | Avg_score  | 4096 rate | 2048 rate | 1024 rate | 512 rate | 256 rate |
 |  ----         | :----:     | :----:    | :----:    | :----:    | :----:   | :----:   |
 | emd + Conv2   |            |           |           |           |          |          |
-| emd + CNN     |            |           |           |           |          |          |
+| emd + CNN     |  13734.06  |   0%      |  11.35%   | 71.2%     |  96.8%   |   99.8%  |
 | emd + CNNpool |  11126.82  |   0%      |  3.85%    | 50%       |  91.7%   |   99.7%  |   
