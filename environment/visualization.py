@@ -88,7 +88,7 @@ class GameBoard:
             if ret == 'op error':
                 return
             _, _, done = ret
-        elif s == 'q':
+        elif s == 'Escape':
             exit()
         elif s == 'p':
             self.game.reset()
