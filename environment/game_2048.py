@@ -1,4 +1,5 @@
 import numpy as np
+from .visualization import GameBoard
 
 
 class Counter:
@@ -17,7 +18,7 @@ class Game2048(object):
     WIDTH = 4
 
     def __init__(self, args):
-        self.actions = ['u', 'd', 'l', 'r']  # Op: move UP, move DOWN, move LEFT, move RIGHT
+        self.actions = ['w', 's', 'a', 'd']  # Op: move UP, move DOWN, move LEFT, move RIGHT
         self.n_actions = len(self.actions)
         self.n_features = np.array([Game2048.HEIGHT, Game2048.WIDTH])
         self.board = np.zeros(shape=[Game2048.HEIGHT, Game2048.WIDTH], dtype=np.int32)
@@ -26,6 +27,13 @@ class Game2048(object):
         self.n_step = 0
         self.score = 0
         self.reset()
+
+        try:
+            self.use_visual_board = bool(args.visual)
+        except AttributeError:
+            self.use_visual_board = False
+        if self.use_visual_board:
+            self.visual_game_board = GameBoard(self)
 
     def reset(self):
         init_places = np.random.choice(a=np.array([5, 6, 9, 10], dtype=np.int32), size=2, replace=False)
@@ -144,15 +152,19 @@ class Game2048(object):
         print(self.board)
 
     def play_human(self):
-
-        while True:
-            self.show_game()
-            digit = input()
-            print('your op:', digit)
-            if digit == 'q':
-                break
-            if digit == 'p':
-                self.reset()
-            if digit in self.actions:
-                self.step(digit)
-                print('score:', self.get_score())
+        if self.use_visual_board:
+            self.visual_game_board.start()
+        else:
+            while True:
+                self.show_game()
+                digit = input()
+                print('your op:', digit)
+                if digit == 'q':
+                    break
+                elif digit == 'p':
+                    self.reset()
+                elif digit in self.actions:
+                    self.step(digit)
+                    print('score:', self.get_score())
+                else:
+                    print('invalid input')
