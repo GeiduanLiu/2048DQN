@@ -153,7 +153,7 @@ class Game2048(object):
 
     def play_human(self):
         if self.use_visual_board:
-            self.visual_game_board.start(data=self.board)
+            self.visual_game_board.start()
         else:
             while True:
                 self.show_game()

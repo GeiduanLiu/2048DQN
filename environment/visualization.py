@@ -49,8 +49,8 @@ class GameBoard:
 
         # self.show_board(data)
 
-    def start(self, data):
-        self.show_board(data)
+    def start(self):
+        self.show_board(data=self.game.board)
         self.win.mainloop()
 
     def show_board(self, data):
@@ -89,12 +89,12 @@ class GameBoard:
                 return
             _, _, done = ret
         elif s == 'Escape':
-            exit()
+            self.win.quit()
         elif s == 'p':
             self.game.reset()
             self.done_lb.config(text='')
 
         self.show_board(data=self.game.board)
-        self.score_lb.config(text='Score: %s' % self.game.get_score())
+        self.score_lb.config(text='Score: %d' % self.game.get_score())
         if done:
             self.done_lb.config(text='Game Over!')
