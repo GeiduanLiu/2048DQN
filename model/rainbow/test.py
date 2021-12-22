@@ -23,11 +23,15 @@ def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
             if done:
                 state, reward_sum, done = env.reset(), 0, False
 
+            old_state = state.clone().detach()
             action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
             state, reward, done = env.step(action)  # Step
             reward_sum += reward
             if args.render:
                 env.render()
+
+            if (state == old_state).all():
+                done = True
 
             if done:
                 T_rewards.append(reward_sum)

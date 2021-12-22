@@ -3,6 +3,7 @@ from collections import deque
 import random
 import torch
 import numpy as np
+import os
 
 from environment.game_2048 import Game2048
 
@@ -36,8 +37,11 @@ class Env():
         return torch.stack([observation], 0)
 
     def step(self, action):
+        old_obs = self._get_state()
         _, reward, done = self.game.step(self.actions.get(action))
         observation = self._get_state()
+        if (old_obs == observation).all():
+            reward -= 100   # todo
         # Return state, reward, done
         return torch.stack([observation], 0), reward, done
 
@@ -53,6 +57,7 @@ class Env():
         return len(self.actions)
 
     def render(self):
+        os.system('cls')
         print(self.game.get_state())
 
     def close(self):

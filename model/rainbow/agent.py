@@ -86,7 +86,7 @@ class Agent():
             u[(l < (self.atoms - 1)) * (l == u)] += 1
 
             # Distribute probability of Tz
-            m = states.new_zeros(self.batch_size, self.atoms)
+            m = torch.zeros(self.batch_size, self.atoms).to(pns_a)
             offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).unsqueeze(1).expand(self.batch_size, self.atoms).to(actions)
             m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
