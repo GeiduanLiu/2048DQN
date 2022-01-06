@@ -83,6 +83,9 @@ class Game2048(object):
             next_board[xx][yy] = new_score
             self.board = next_board.copy()
             self.n_step += 1
+
+        if self._terminal(next_board):
+            done = True
         return next_board, reward, done
 
     @staticmethod

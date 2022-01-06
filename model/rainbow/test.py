@@ -5,6 +5,8 @@ import plotly
 from plotly.graph_objs import Scatter
 from plotly.graph_objs.scatter import Line
 import torch
+from tqdm import tqdm
+import numpy as np
 
 from .env import Env
 
@@ -16,6 +18,9 @@ def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
     metrics['steps'].append(T)
     T_rewards, T_Qs = [], []
 
+    max_tile_list = []
+    tqdm.write("evaluate")
+
     # Test performance over several episodes
     done = True
     for _ in range(args.evaluation_episodes):
@@ -24,19 +29,35 @@ def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
                 state, reward_sum, done = env.reset(), 0, False
 
             old_state = state.clone().detach()
-            action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+            # action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+            action = dqn.act(state)  # Choose an action greedily on test
             state, reward, done = env.step(action)  # Step
             reward_sum += reward
             if args.render:
                 env.render()
 
-            if (state == old_state).all():
-                done = True
+            action = -1
+            while (state == old_state).all():   # no change, stuck
+                action += 1
+                if action == 4:
+                    print('error! no move available. state:\n', env.game.board)
+                    done = True
+                    break
+                state, reward, done = env.step(action)  # Step
+                reward_sum += reward
 
             if done:
-                T_rewards.append(reward_sum)
+                # T_rewards.append(reward_sum)
+                T_rewards.append(env.game.score)
+                max_tile_list.append(int(np.max(env.game.board)))
                 break
     env.close()
+
+    max_tile_list = np.array(max_tile_list)
+    output_str = "episode: %s, avg_score: %.2f, " % (str(T), sum(T_rewards) / len(T_rewards))
+    for max_tile in [8192, 4096, 2048, 1024, 512, 256]:
+        output_str += "max_tile %d rate: %.2f%%, " % (max_tile, np.sum(max_tile_list >= max_tile) * 100 / len(T_rewards))
+    tqdm.write(output_str)
 
     # Test Q-values over validation memory
     for state in val_mem:  # Iterate over valid states

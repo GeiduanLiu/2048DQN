@@ -6,6 +6,7 @@ import numpy as np
 import os
 
 from environment.game_2048 import Game2048
+from .reward import custom_reward
 
 
 class Args():
@@ -22,7 +23,7 @@ class Env():
         self.game = Game2048(game_args)
 
         self.actions = dict((i, e) for i, e in enumerate(self.game.actions))
-        self.training = True  # Consistent with model training mode  # todo: useless in game2048?
+        self.training = True  # Consistent with model training mode
 
     def _get_state(self):
         state = self.game.get_state()
@@ -40,8 +41,10 @@ class Env():
         old_obs = self._get_state()
         _, reward, done = self.game.step(self.actions.get(action))
         observation = self._get_state()
-        if (old_obs == observation).all():
-            reward -= 100   # todo
+        if self.training:
+            reward = custom_reward(reward, old_obs, observation, done)
+        else:
+            reward = 2 ** (reward * 10) - 1
         # Return state, reward, done
         return torch.stack([observation], 0), reward, done
 

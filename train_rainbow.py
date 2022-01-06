@@ -26,9 +26,9 @@ parser.add_argument('--architecture', type=str, default='conv2', choices=['conv2
 parser.add_argument('--embedding_type', type=str, default='emd', choices=['emd', 'onehot'], metavar='EMD', help='Embedding type')
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size') # todo:256
 parser.add_argument('--noisy-std', type=float, default=0.1, metavar='σ', help='Initial standard deviation of noisy linear layers')
-parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
+parser.add_argument('--atoms', type=int, default=81, metavar='C', help='Discretised size of value distribution')   # 51->81
 parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
-parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
+parser.add_argument('--V-max', type=float, default=30, metavar='V', help='Maximum of value distribution support')  # 10->30
 parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
 parser.add_argument('--memory-capacity', type=int, default=int(1e6), metavar='CAPACITY', help='Experience replay memory capacity')
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
@@ -40,14 +40,14 @@ parser.add_argument('--target-update', type=int, default=int(8e3), metavar='τ',
 parser.add_argument('--reward-clip', type=int, default=0, metavar='VALUE', help='Reward clipping (0 to disable)')  # 1->0
 parser.add_argument('--learning-rate', type=float, default=0.0000625, metavar='η', help='Learning rate')
 parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
-parser.add_argument('--batch-size', type=int, default=32, metavar='SIZE', help='Batch size')
+parser.add_argument('--batch-size', type=int, default=1024, metavar='SIZE', help='Batch size')  # 32->1024
 parser.add_argument('--norm-clip', type=float, default=10, metavar='NORM', help='Max L2 norm for gradient clipping')
 parser.add_argument('--learn-start', type=int, default=int(20e3), metavar='STEPS', help='Number of steps before starting training')
 parser.add_argument('--evaluate', action='store_true', help='Evaluate only')
 parser.add_argument('--evaluation-interval', type=int, default=100000, metavar='STEPS', help='Number of training steps between evaluations')
-parser.add_argument('--evaluation-episodes', type=int, default=10, metavar='N', help='Number of evaluation episodes to average over')
+parser.add_argument('--evaluation-episodes', type=int, default=100, metavar='N', help='Number of evaluation episodes to average over')  # 10->100
 # TODO: Note that DeepMind's evaluation method is running the latest agent for 500K frames ever every 1M steps
-parser.add_argument('--evaluation-size', type=int, default=500, metavar='N', help='Number of transitions to use for validating Q')
+parser.add_argument('--evaluation-size', type=int, default=10000, metavar='N', help='Number of transitions to use for validating Q')   # 500->10000
 parser.add_argument('--render', action='store_true', help='Display screen (testing only)')
 parser.add_argument('--enable-cudnn', action='store_true', help='Enable cuDNN (faster but nondeterministic)')
 parser.add_argument('--checkpoint-interval', default=1e5, help='How often to checkpoint the model, defaults to 0 (never checkpoint)')
