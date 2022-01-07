@@ -3,7 +3,7 @@ import numpy as np
 
 
 class GameBoard:
-    def __init__(self, game):
+    def __init__(self, game, key_response=True):
         self.game = game
 
         self.win_width = 800
@@ -32,10 +32,11 @@ class GameBoard:
         self.win.title('Game 2048')
         self.win.geometry('%dx%d' % (self.win_width, self.win_height))
 
-        self.keypress_lb = tk.Label(self.win, text='Press', font=('Arial', 20))
-        self.keypress_lb.bind('<Key>', self.key_response)
-        self.keypress_lb.focus_set()
-        self.keypress_lb.place(relx=0.75, rely=0.1)
+        if key_response:
+            self.keypress_lb = tk.Label(self.win, text='Press', font=('Arial', 20))
+            self.keypress_lb.bind('<Key>', self.key_response)
+            self.keypress_lb.focus_set()
+            self.keypress_lb.place(relx=0.75, rely=0.1)
 
         self.score_lb = tk.Label(self.win, text='Score: 0', font=('Arial', 20))
         self.score_lb.place(relx=0.75, rely=0.2)
@@ -98,3 +99,12 @@ class GameBoard:
         self.score_lb.config(text='Score: %d' % self.game.get_score())
         if done:
             self.done_lb.config(text='Game Over!')
+
+    def refresh(self):
+        self.show_board(data=self.game.board)
+        self.score_lb.config(text='Score: %d' % self.game.get_score())
+        done = self.game._terminal(self.game.board)
+        if done:
+            self.done_lb.config(text='Game Over!')
+        else:
+            self.done_lb.config(text='')

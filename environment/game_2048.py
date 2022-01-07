@@ -32,8 +32,12 @@ class Game2048(object):
             self.use_visual_board = bool(args.visual)
         except AttributeError:
             self.use_visual_board = False
+        try:
+            key_response = bool(args.key_response)
+        except AttributeError:
+            key_response = True
         if self.use_visual_board:
-            self.visual_game_board = GameBoard(self)
+            self.visual_game_board = GameBoard(self, key_response=key_response)
 
     def reset(self):
         init_places = np.random.choice(a=np.array([5, 6, 9, 10], dtype=np.int32), size=2, replace=False)

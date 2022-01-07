@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 import os
+import time
+
 import plotly
 from plotly.graph_objs import Scatter
 from plotly.graph_objs.scatter import Line
@@ -13,6 +15,9 @@ from .env import Env
 
 # Test DQN
 def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
+    if args.render:
+        return test_render(args, T, dqn, val_mem, metrics, results_dir, evaluate)
+
     env = Env(args)
     env.eval()
     metrics['steps'].append(T)
@@ -101,3 +106,73 @@ def _plot_line(xs, ys_population, title, path=''):
         'data': [trace_upper, trace_mean, trace_lower, trace_min, trace_max],
         'layout': dict(title=title, xaxis={'title': 'Step'}, yaxis={'title': title})
     }, filename=os.path.join(path, title + '.html'), auto_open=False)
+
+
+def test_render(args, T, dqn, val_mem, metrics, results_dir, evaluate):
+    def run():
+        time.sleep(0.5)
+        # Test performance over several episodes
+        done = True
+        for _ in range(args.evaluation_episodes):
+            while True:
+                if done:
+                    state, reward_sum, done = env.reset(), 0, False
+
+                old_state = state.clone().detach()
+                # action = dqn.act_e_greedy(state)  # Choose an action ε-greedily
+                action = dqn.act(state)  # Choose an action greedily on test
+                state, reward, done = env.step(action)  # Step
+                reward_sum += reward
+                if args.render:
+                    env.render()
+
+                action = -1
+                while (state == old_state).all():  # no change, stuck
+                    action += 1
+                    if action == 4:
+                        print('error! no move available. state:\n', env.game.board)
+                        done = True
+                        break
+                    state, reward, done = env.step(action)  # Step
+                    reward_sum += reward
+
+                if done:
+                    # T_rewards.append(reward_sum)
+                    T_rewards.append(env.game.score)
+                    max_tile_list.append(int(np.max(env.game.board)))
+                    break
+        env.close()
+
+    assert evaluate, '--render can only be used with --evaluate!'
+
+    env = Env(args)
+    env.eval()
+    metrics['steps'].append(T)
+    T_rewards, T_Qs = [], []
+
+    max_tile_list = []
+
+    # start render
+    import threading
+    t = threading.Thread(target=run, args=())
+    t.setDaemon(True)
+    t.start()
+    print('vis start')
+    env.game.visual_game_board.start()
+    print('vis end')
+
+    max_tile_list = np.array(max_tile_list)
+    output_str = "episode: %s, avg_score: %.2f, " % (str(T), sum(T_rewards) / len(T_rewards))
+    for max_tile in [8192, 4096, 2048, 1024, 512, 256]:
+        output_str += "max_tile %d rate: %.2f%%, " % (
+        max_tile, np.sum(max_tile_list >= max_tile) * 100 / len(T_rewards))
+    tqdm.write(output_str)
+
+    # Test Q-values over validation memory
+    for state in val_mem:  # Iterate over valid states
+        T_Qs.append(dqn.evaluate_q(state))
+
+    avg_reward, avg_Q = sum(T_rewards) / len(T_rewards), sum(T_Qs) / len(T_Qs)
+
+    # Return average reward and Q-value
+    return avg_reward, avg_Q

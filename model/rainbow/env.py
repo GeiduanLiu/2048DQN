@@ -18,8 +18,9 @@ class Env():
         self.device = args.device
 
         game_args = Args()
-        game_args.visual = 0
-        game_args.reward_type = "score"     # todo
+        game_args.visual = args.render
+        game_args.reward_type = "score"
+        game_args.key_response = False
         self.game = Game2048(game_args)
 
         self.actions = dict((i, e) for i, e in enumerate(self.game.actions))
@@ -65,8 +66,9 @@ class Env():
         return len(self.actions)
 
     def render(self):
-        os.system('cls')
-        print(self.game.get_state())
+        # os.system('cls')
+        # print(self.game.get_state())
+        self.game.visual_game_board.refresh()
 
     def close(self):
-        pass
+        self.game.visual_game_board.win.quit()
