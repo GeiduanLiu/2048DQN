@@ -50,6 +50,8 @@ def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
                     break
                 state, reward, done = env.step(action)  # Step
                 reward_sum += reward
+                if args.render:
+                    env.render()
 
             if done:
                 # T_rewards.append(reward_sum)
@@ -135,17 +137,20 @@ def test_render(args, T, dqn, val_mem, metrics, results_dir, evaluate):
                         break
                     state, reward, done = env.step(action)  # Step
                     reward_sum += reward
+                    if args.render:
+                        env.render()
 
                 if done:
                     # T_rewards.append(reward_sum)
                     T_rewards.append(env.game.score)
                     max_tile_list.append(int(np.max(env.game.board)))
+                    time.sleep(0.5)
                     break
         env.close()
 
     assert evaluate, '--render can only be used with --evaluate!'
 
-    env = Env(args)
+    env = Env(args, visual=True)
     env.eval()
     metrics['steps'].append(T)
     T_rewards, T_Qs = [], []

@@ -14,11 +14,11 @@ class Args():
 
 
 class Env():
-    def __init__(self, args):
+    def __init__(self, args, visual=False):
         self.device = args.device
 
         game_args = Args()
-        game_args.visual = args.render
+        game_args.visual = visual
         game_args.reward_type = "score"
         game_args.key_response = False
         self.game = Game2048(game_args)
@@ -71,4 +71,7 @@ class Env():
         self.game.visual_game_board.refresh()
 
     def close(self):
-        self.game.visual_game_board.win.quit()
+        try:
+            self.game.visual_game_board.win.quit()
+        except Exception:
+            pass
