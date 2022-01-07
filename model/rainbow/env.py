@@ -25,8 +25,12 @@ class Env():
         self.actions = dict((i, e) for i, e in enumerate(self.game.actions))
         self.training = True  # Consistent with model training mode
 
-    def _get_state(self):
+    def _get_np_state(self):
         state = self.game.get_state()
+        return state
+
+    def _get_state(self):
+        state = self._get_np_state()
         state = np.floor(np.log2(state + 1)).astype(np.int8)
         return torch.tensor(state, dtype=torch.uint8, device=self.device)
 
@@ -38,13 +42,14 @@ class Env():
         return torch.stack([observation], 0)
 
     def step(self, action):
-        old_obs = self._get_state()
+        old_np_obs = self._get_np_state()
         _, reward, done = self.game.step(self.actions.get(action))
-        observation = self._get_state()
+        new_np_obs = self._get_np_state()
         if self.training:
-            reward = custom_reward(reward, old_obs, observation, done)
+            reward = custom_reward(reward, old_np_obs, new_np_obs, done)
         else:
             reward = 2 ** (reward * 10) - 1
+        observation = self._get_state()
         # Return state, reward, done
         return torch.stack([observation], 0), reward, done
 
